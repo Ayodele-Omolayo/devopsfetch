@@ -179,7 +179,7 @@ display_activities() {
 
     echo -e "Displaying System Logs from $start_time to $end_time:\n"
 
-    logs=$(journalctl --since "$start_time" --until "$end_time")
+    logs=$(sudo journalctl --since "$start_time" --until "$end_time")
 
     echo -e "Filtered Logs:\n"
     echo "$logs"
