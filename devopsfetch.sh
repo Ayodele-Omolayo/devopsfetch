@@ -73,18 +73,26 @@ port_info() {
 docker_info() {
     if [ -z "$1" ]; then
         echo -e "Docker Images and Containers:\n"
-        echo -e "Key: \e[32mIn Use\e[0m | \e[31mNot In Use\e[0m\n"
-        local cols=("IMAGE" "CONTAINER")
+        echo -e "Key: \e[32mRunning\e[0m | \e[33mStopped\e[0m | \e[31mNot In Use\e[0m\n"
+        local cols=("IMAGE" "CONTAINER" "STATUS")
         local col_width=30
         print_header $col_width "${cols[@]}"
         docker images --format "{{.Repository}}:{{.Tag}}" | while read -r image; do
-            if docker ps -a --filter ancestor="$image" --format "{{.Names}}" | grep -q .; then
-                color="\e[32m"  # Green
+            container_info=$(docker ps -a --filter ancestor="$image" --format "{{.Names}} {{.Status}}")
+            if [ -n "$container_info" ]; then
+                while IFS= read -r line; do
+                    container=$(echo $line | awk '{print $1}')
+                    status=$(echo $line | awk '{print substr($0, index($0,$2))}')
+                    if [[ $status == *"Up"* ]]; then
+                        color="\e[32m"  # Green for running
+                    else
+                        color="\e[33m"  # Yellow for stopped
+                    fi
+                    printf "| ${color}%-*s\e[0m | ${color}%-*s\e[0m | ${color}%-*s\e[0m |\n" $col_width "$image" $col_width "$container" $col_width "$status"
+                done <<< "$container_info"
             else
-                color="\e[31m"  # Red
+                printf "| \e[31m%-*s\e[0m | \e[31m%-*s\e[0m | \e[31m%-*s\e[0m |\n" $col_width "$image" $col_width "None" $col_width "Not In Use"
             fi
-            container=$(docker ps -a --filter ancestor="$image" --format "{{.Names}}")
-            printf "| ${color}%-*s\e[0m | ${color}%-*s\e[0m |\n" $col_width "$image" $col_width "$container"
         done
         print_footer $col_width ${#cols[@]}
     else
@@ -92,6 +100,7 @@ docker_info() {
         docker inspect "$1" | jq '.'
     fi
 }
+
 
 # Function to get Nginx information
 nginx_info() {
@@ -179,7 +188,7 @@ display_activities() {
 
     echo -e "Displaying System Logs from $start_time to $end_time:\n"
 
-    logs=$(sudo journalctl --since "$start_time" --until "$end_time")
+    logs=$(journalctl --since "$start_time" --until "$end_time")
 
     echo -e "Filtered Logs:\n"
     echo "$logs"
